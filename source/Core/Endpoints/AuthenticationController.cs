@@ -127,8 +127,17 @@ namespace IdentityServer3.Core.Endpoints
                     Logger.WarnFormat("user service returned an error message: {0}", authResult.ErrorMessage);
 
                     await eventService.RaisePreLoginFailureEventAsync(signin, signInMessage, authResult.ErrorMessage);
-                    
-                    return RenderErrorPage(authResult.ErrorMessage);
+
+                    if (preAuthContext.ShowLoginPageOnErrorResult)
+                    {
+                        Logger.Debug("ShowLoginPageOnErrorResult set to true, showing login page with error");
+                        return await RenderLoginPage(signInMessage, signin, authResult.ErrorMessage);
+                    }
+                    else
+                    {
+                        Logger.Debug("ShowLoginPageOnErrorResult set to false, showing error page with error");
+                        return RenderErrorPage(authResult.ErrorMessage);
+                    }
                 }
 
                 Logger.Info("user service returned a login result");
@@ -537,7 +546,10 @@ namespace IdentityServer3.Core.Endpoints
                 await eventService.RaisePartialLoginCompleteEventAsync(result.User.Identities.First(), signInId, signInMessage);
             }
 
-            return await SignInAndRedirectAsync(signInMessage, signInId, result);
+            // check to see if user clicked "remember me" on login page
+            bool? rememberMe = await context.GetPartialLoginRememberMeAsync();
+
+            return await SignInAndRedirectAsync(signInMessage, signInId, result, rememberMe);
         }
 
         [Route(Constants.RoutePaths.Logout, Name = Constants.RouteNames.LogoutPrompt)]
@@ -560,20 +572,35 @@ namespace IdentityServer3.Core.Endpoints
             var sub = user.GetSubjectId();
             Logger.InfoFormat("Logout prompt for subject: {0}", sub);
 
-            var message = signOutMessageCookie.Read(id);
-            if (message != null && message.ClientId.IsPresent())
+            if (options.AuthenticationOptions.RequireSignOutPrompt == false)
             {
-                Logger.InfoFormat("SignOutMessage present (from client {0}), performing logout", message.ClientId);
-                return await Logout(id);
+                var message = signOutMessageCookie.Read(id);
+                if (message != null && message.ClientId.IsPresent())
+                {
+                    var client = await clientStore.FindClientByIdAsync(message.ClientId);
+                    if (client != null && client.RequireSignOutPrompt == true)
+                    {
+                        Logger.InfoFormat("SignOutMessage present (from client {0}) but RequireSignOutPrompt is true, rendering logout prompt", message.ClientId);
+                        return RenderLogoutPromptPage(id);
+                    }
+
+                    Logger.InfoFormat("SignOutMessage present (from client {0}) and RequireSignOutPrompt is false, performing logout", message.ClientId);
+                    return await Logout(id);
+                }
+
+                if (!this.options.AuthenticationOptions.EnableSignOutPrompt)
+                {
+                    Logger.InfoFormat("EnableSignOutPrompt set to false, performing logout");
+                    return await Logout(id);
+                }
+
+                Logger.InfoFormat("EnableSignOutPrompt set to true, rendering logout prompt");
+            }
+            else
+            {
+                Logger.InfoFormat("RequireSignOutPrompt set to true, rendering logout prompt");
             }
 
-            if (!this.options.AuthenticationOptions.EnableSignOutPrompt)
-            {
-                Logger.InfoFormat("EnableSignOutPrompt set to false, performing logout");
-                return await Logout(id);
-            }
-
-            Logger.InfoFormat("EnableSignOutPrompt set to true, rendering logout prompt");
             return RenderLogoutPromptPage(id);
         }
 
@@ -598,25 +625,20 @@ namespace IdentityServer3.Core.Endpoints
             }
 
             Logger.Info("Clearing cookies");
-            sessionCookie.ClearSessionId();
-            signOutMessageCookie.Clear(id);
-            ClearAuthenticationCookies();
-            SignOutOfExternalIdP();
-            
+            context.QueueRemovalOfSignOutMessageCookie(id);
+            context.ClearAuthenticationCookies();
+            context.SignOutOfExternalIdP(id);
+
+            string clientId = null;
+            var message = signOutMessageCookie.Read(id);
+            if (message != null)
+            {
+                clientId = message.ClientId;
+            }
+            await context.CallUserServiceSignOutAsync(clientId);
+
             if (user != null && user.Identity.IsAuthenticated)
             {
-                var message = signOutMessageCookie.Read(id);
-                var signOutContext = new SignOutContext
-                {
-                    Subject = user
-                };
-
-                if (message != null)
-                {
-                    signOutContext.ClientId = message.ClientId;
-                }
-
-                await this.userService.SignOutAsync(signOutContext);
                 await eventService.RaiseLogoutEventAsync(user, id, message);
             }
 
@@ -662,6 +684,17 @@ namespace IdentityServer3.Core.Endpoints
                 {
                     authResult = postAuthenActionResult.Item2;
                 }
+            }
+
+            // check to see if idp used to signin matches 
+            if (signInMessage.IdP.IsPresent() && 
+                authResult.IsPartialSignIn == false && 
+                authResult.HasSubject && 
+                authResult.User.GetIdentityProvider() != signInMessage.IdP)
+            {
+                // this is an error -- the user service did not set the idp to the one requested
+                Logger.ErrorFormat("IdP requested was: {0}, but the user service issued signin for IdP: {1}", signInMessage.IdP, authResult.User.GetIdentityProvider());
+                return RenderErrorPage();
             }
 
             ClearAuthenticationCookiesForNewSignIn(authResult);
@@ -766,6 +799,14 @@ namespace IdentityServer3.Core.Endpoints
                     }
                 }
             }
+            else
+            {
+                if (rememberMe != null)
+                {
+                    // if rememberme set, then store for later use once we need to issue login cookie
+                    props.Dictionary.Add(Constants.Authentication.PartialLoginRememberMe, rememberMe.Value ? "true" : "false");
+                }
+            }
 
             context.Authentication.SignIn(props, id);
         }
@@ -807,29 +848,6 @@ namespace IdentityServer3.Core.Endpoints
             context.Authentication.SignOut(
                 Constants.ExternalAuthenticationType,
                 Constants.PartialSignInAuthenticationType);
-        }
-
-        private void ClearAuthenticationCookies()
-        {
-            context.Authentication.SignOut(
-                Constants.PrimaryAuthenticationType,
-                Constants.ExternalAuthenticationType,
-                Constants.PartialSignInAuthenticationType);
-        }
-
-        private void SignOutOfExternalIdP()
-        {
-            // look for idp claim other than IdSvr
-            // if present, then signout of it
-            var user = User as ClaimsPrincipal;
-            if (user != null && user.Identity.IsAuthenticated)
-            {
-                var idp = user.GetIdentityProvider();
-                if (idp != Constants.BuiltInIdentityProvider)
-                {
-                    context.Authentication.SignOut(idp);
-                }
-            }
         }
 
         async Task<bool> IsLocalLoginAllowedForClient(SignInMessage message)
@@ -981,7 +999,7 @@ namespace IdentityServer3.Core.Endpoints
             Logger.Info("rendering logged out page");
 
             var baseUrl = context.GetIdentityServerBaseUrl();
-            var iframeUrls = options.RenderProtocolUrls(baseUrl);
+            var iframeUrls = options.RenderProtocolUrls(baseUrl, sessionCookie.GetSessionId());
 
             var message = signOutMessageCookie.Read(id);
             var redirectUrl = message != null ? message.ReturnUrl : null;

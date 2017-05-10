@@ -25,6 +25,22 @@ namespace IdentityServer3.Core.Validation
     public class ValidatedTokenRequest : ValidatedRequest
     {
         /// <summary>
+        /// Initializes the validated request with default values.
+        /// </summary>
+        public ValidatedTokenRequest()
+        {
+            RequestedTokenType = RequestedTokenTypes.Bearer;
+        }
+
+        /// <summary>
+        /// Gets or sets the requested token type.
+        /// </summary>
+        /// <value>
+        /// The requested token type.
+        /// </value>
+        public RequestedTokenTypes RequestedTokenType { get; set; }
+
+        /// <summary>
         /// Gets or sets the client.
         /// </summary>
         /// <value>
@@ -95,5 +111,29 @@ namespace IdentityServer3.Core.Validation
         /// The authorization code handle.
         /// </value>
         public string AuthorizationCodeHandle { get; set; }
+
+        /// <summary>
+        /// Gets or sets the code verifier.
+        /// </summary>
+        /// <value>
+        /// The code verifier.
+        /// </value>
+        public string CodeVerifier { get; set; }
+
+        /// <summary>
+        /// Gets or sets the algorithm used for the proof key
+        /// </summary>
+        /// <value>
+        /// The algorithm name.
+        /// </value>
+        public string ProofKeyAlgorithm { get; set; }
+
+        /// <summary>
+        /// Gets or sets the proof key
+        /// </summary>
+        /// <value>
+        /// The proof key.
+        /// </value>
+        public string ProofKey { get; set; }
     }
 }

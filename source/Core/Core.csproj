@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>IdentityServer3.Core</RootNamespace>
     <AssemblyName>IdentityServer3</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -24,6 +24,7 @@
     <DocumentationFile>..\..\build\IdentityServer3.xml</DocumentationFile>
     <NoWarn>
     </NoWarn>
+    <LangVersion>5</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -54,8 +55,8 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Autofac.WebApi2.3.4.0\lib\net45\Autofac.Integration.WebApi.dll</HintPath>
     </Reference>
-    <Reference Include="IdentityModel.Net45, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\IdentityModel.1.2.0\lib\net45\IdentityModel.Net45.dll</HintPath>
+    <Reference Include="IdentityModel, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\IdentityModel.1.9.2\lib\net45\IdentityModel.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
@@ -83,9 +84,9 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Microsoft.Owin.StaticFiles.3.0.1\lib\net45\Microsoft.Owin.StaticFiles.dll</HintPath>
     </Reference>
-    <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Newtonsoft.Json.6.0.8\lib\net45\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=8.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.8.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="Owin">
       <HintPath>..\packages\Owin.1.0\lib\net40\Owin.dll</HintPath>
@@ -127,18 +128,25 @@
       <Link>Properties\VersionAssemblyInfo.cs</Link>
     </Compile>
     <Compile Include="App_Packages\LibLog.4.2\LibLog.cs" />
+    <Compile Include="Configuration\AppBuilderExtensions\ConfigureRenderLoggedOutPageExtension.cs" />
+    <Compile Include="Configuration\AppBuilderExtensions\ConfigureSignOutMessageCookieExtension.cs" />
     <Compile Include="Configuration\AppBuilderExtensions\ConfigureIdentityServerIssuerExtension.cs" />
     <Compile Include="Configuration\AppBuilderExtensions\ConfigureRequestIdExtension.cs" />
     <Compile Include="Configuration\AppBuilderExtensions\ConfigureHttpLoggingExtension.cs" />
     <Compile Include="Configuration\AuthenticationSessionStoreWrapper.cs" />
     <Compile Include="Configuration\AuthenticationTicketModel.cs" />
     <Compile Include="Configuration\CookieSecureMode.cs" />
+    <Compile Include="Configuration\DiscoveryOptions.cs" />
     <Compile Include="Configuration\EventsOptions.cs" />
+    <Compile Include="Configuration\Hosting\ClientListCookie.cs" />
     <Compile Include="Configuration\InputLengthRestrictions.cs" />
     <Compile Include="Configuration\IAuthenticationSessionStoreProvider.cs" />
     <Compile Include="Configuration\X509CertificateDataProtector.cs" />
+    <Compile Include="Endpoints\Connect\IntrospectionEndpointController.cs" />
     <Compile Include="Endpoints\Connect\RevocationEndpointController.cs" />
     <Compile Include="Endpoints\WelcomeController.cs" />
+    <Compile Include="Events\Authentication\ClientAuthenticationDetails.cs" />
+    <Compile Include="Events\EndpointDetail.cs" />
     <Compile Include="Extensions\DateTimeOffsetHelper.cs" />
     <Compile Include="Extensions\DateTimeHelper.cs" />
     <Compile Include="Configuration\Hosting\LastUserNameCookie.cs" />
@@ -153,7 +161,7 @@
     <Compile Include="Events\TokenService\AccessTokenIssuedDetails.cs" />
     <Compile Include="Events\Authentication\LogoutDetails.cs" />
     <Compile Include="Events\Base\Event.cs" />
-    <Compile Include="Events\EndpointDetail.cs" />
+    <Compile Include="Events\IntrospectionEndpointDetail.cs" />
     <Compile Include="Events\TokenService\AuthorizationCodeIssuedDetails.cs" />
     <Compile Include="Events\TokenService\RefreshTokenDetails.cs" />
     <Compile Include="Events\TokenService\RefreshTokenRefreshDetails.cs" />
@@ -164,8 +172,10 @@
     <Compile Include="Extensions\IClientStoreExtensions.cs" />
     <Compile Include="Extensions\IContainerExtensions.cs" />
     <Compile Include="Extensions\IdentityServerOptionsExtensions.cs" />
+    <Compile Include="Extensions\JwtSecurityTokenExtensions.cs" />
     <Compile Include="Extensions\LoginPageLinkExtensions.cs" />
     <Compile Include="Extensions\OwinEnvironmentExtensions.cs" />
+    <Compile Include="Extensions\TokenExtensions.cs" />
     <Compile Include="Extensions\X509Certificate2Extensions.cs" />
     <Compile Include="Internal\AntiXssLibrary\CodeCharts\CodeChartHelper.cs" />
     <Compile Include="Internal\AntiXssLibrary\CodeCharts\Lower.cs" />
@@ -198,6 +208,7 @@
     <Compile Include="Extensions\IEventServiceExtensions.cs" />
     <Compile Include="Extensions\ILocalizationServiceExtensions.cs" />
     <Compile Include="Logging\LibLogTraceListener.cs" />
+    <Compile Include="Logging\NoopLogProvider.cs" />
     <Compile Include="Models\ClientPermissionDescription.cs" />
     <Compile Include="Models\Contexts\ExternalAuthenticationContext.cs" />
     <Compile Include="Models\ParsedSecret.cs" />
@@ -206,6 +217,7 @@
     <Compile Include="Models\IsActiveContext.cs" />
     <Compile Include="Models\Contexts\LocalAuthenticationContext.cs" />
     <Compile Include="Models\Contexts\PreAuthenticationContext.cs" />
+    <Compile Include="Models\RsaPublicKeyJwk.cs" />
     <Compile Include="Models\Secret.cs" />
     <Compile Include="Models\AuthenticatedLogin.cs" />
     <Compile Include="Models\ITokenMetadata.cs" />
@@ -217,27 +229,46 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>T4resx.tt</DependentUpon>
     </Compile>
+    <Compile Include="ResponseHandling\IntrospectionResponseGenerator.cs" />
     <Compile Include="Results\CheckSessionResult.cs" />
     <Compile Include="Results\RevocationErrorResult.cs" />
+    <Compile Include="Results\IntrospectionResult.cs" />
     <Compile Include="Results\WelcomeActionResult.cs" />
     <Compile Include="Services\Caching\CachingClientStore.cs" />
     <Compile Include="Services\Caching\CachingUserService.cs" />
     <Compile Include="Services\Caching\CachingScopeStore.cs" />
     <Compile Include="Services\DefaultViewService\DefaultViewServiceOptions.cs" />
     <Compile Include="Services\DefaultViewService\DefaultViewServiceRegistration.cs" />
+    <Compile Include="Services\Default\DefaultAuthenticationSessionValidator.cs" />
+    <Compile Include="Services\Default\DefaultCustomTokenResponseGenerator.cs" />
+    <Compile Include="Services\Default\DefaultSigningKeyService.cs" />
+    <Compile Include="Services\Default\DefaultTokenSigningService.cs" />
+    <Compile Include="Services\IAuthenticationSessionValidator.cs" />
+    <Compile Include="Services\ICustomTokenResponseGenerator.cs" />
+    <Compile Include="Services\ISigningKeyService.cs" />
     <Compile Include="Validation\BasicAuthenticationSecretParser.cs" />
+    <Compile Include="Validation\IntrospectionRequestValidationResult.cs" />
+    <Compile Include="Validation\IntrospectionRequestValidator.cs" />
+    <Compile Include="Validation\RequestedTokenTypes.cs" />
+    <Compile Include="Validation\ResponseTypeEqualityComparer.cs" />
+    <Compile Include="Validation\ScopeSecretValidationResult.cs" />
+    <Compile Include="Validation\ScopeSecretValidator.cs" />
+    <Compile Include="Validation\ClientAssertionSecretParser.cs" />
     <Compile Include="Validation\ClientSecretValidator.cs" />
     <Compile Include="Services\Default\DefaultCache.cs" />
     <Compile Include="Services\Default\AutofacDependencyResolver.cs" />
     <Compile Include="Services\Default\DefaultCorsPolicyService.cs" />
-    <Compile Include="Services\Default\DefaultCustomGrantValidator.cs" />
+    <Compile Include="Validation\EmbeddedCertificateJwtSecurityTokenHandler.cs" />
     <Compile Include="Validation\HashedSharedSecretValidator.cs" />
     <Compile Include="Services\Default\EventServiceDecorator.cs" />
     <Compile Include="Services\Default\DefaultLocalizationService.cs" />
     <Compile Include="Services\Default\DefaultRedirectUriValidator.cs" />
+    <Compile Include="Validation\PrivateKeyJwtSecretValidator.cs" />
     <Compile Include="Validation\PlainTextSharedSecretValidator.cs" />
     <Compile Include="Validation\PostBodySecretParser.cs" />
     <Compile Include="Services\Default\UserServiceBase.cs" />
+    <Compile Include="Validation\SecretParser.cs" />
+    <Compile Include="Validation\SecretValidator.cs" />
     <Compile Include="Validation\X509CertificateThumbprintSecretValidator.cs" />
     <Compile Include="Services\ICache.cs" />
     <Compile Include="Services\ICorsPolicyService.cs" />
@@ -274,7 +305,7 @@
     <Compile Include="Services\ExternalClaimsFilter\ExternalClaimsFilterUserService.cs" />
     <Compile Include="Services\ExternalClaimsFilter\FacebookClaimsFilter.cs" />
     <Compile Include="Services\IEventService.cs" />
-    <Compile Include="Validation\ClientValidationResult.cs" />
+    <Compile Include="Validation\ClientSecretValidationResult.cs" />
     <Compile Include="Validation\CustomGrantValidationResult.cs" />
     <Compile Include="Logging\Models\AuthorizeRequestValidationLog.cs" />
     <Compile Include="Logging\Models\ClientValidationLog.cs" />
@@ -288,6 +319,7 @@
     <Compile Include="Validation\TokenRevocationRequestValidationResult.cs" />
     <Compile Include="Validation\TokenRevocationRequestValidator.cs" />
     <Compile Include="Validation\ValidationResult.cs" />
+    <Compile Include="ViewModels\AuthorizeResponseViewModel.cs" />
     <Compile Include="ViewModels\RevokeClientPermission.cs" />
     <Compile Include="ResponseHandling\EndSessionResponseGenerator.cs" />
     <Compile Include="Results\AuthorizeFormPostResult.cs" />
@@ -365,7 +397,6 @@
     <Compile Include="Services\DefaultViewService\DefaultViewService.cs" />
     <Compile Include="Services\IRefreshTokenService.cs" />
     <Compile Include="Services\IRefreshTokenStore.cs" />
-    <Compile Include="Services\Default\DefaultTokenSigningService.cs" />
     <Compile Include="Services\ITokenSigningService.cs" />
     <Compile Include="Configuration\Hosting\AutofacScope.cs" />
     <Compile Include="Configuration\Hosting\HostDataProtector.cs" />
@@ -476,6 +507,7 @@
       <Link>default.licenseheader</Link>
     </None>
     <None Include="app.config" />
+    <None Include="bundleconfig.json" />
     <None Include="Resources\T4resx.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>T4resx.cs</LastGenOutput>
@@ -532,14 +564,15 @@
     <None Include="Services\DefaultViewService\HttpAssets\app\crypto.min.js.map">
       <DependentUpon>crypto.min.js</DependentUpon>
     </None>
-    <None Include="Services\DefaultViewService\HttpAssets\scripts.2.0.0.js.bundle" />
-    <None Include="Services\DefaultViewService\HttpAssets\scripts.2.0.0.min.js.map">
-      <DependentUpon>scripts.2.0.0.min.js</DependentUpon>
-    </None>
-    <None Include="Services\DefaultViewService\HttpAssets\styles.css.bundle" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Services\DefaultViewService\HttpAssets\styles.css" />
+    <EmbeddedResource Include="Services\DefaultViewService\HttpAssets\styles.min.css">
+      <DependentUpon>styles.css</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Services\DefaultViewService\PageAssets\authorizeresponse.html" />
+    <EmbeddedResource Include="Services\DefaultViewService\PageAssets\SignoutFrame.html" />
     <EmbeddedResource Include="Services\DefaultViewService\PageAssets\welcome.html" />
     <EmbeddedResource Include="Services\DefaultViewService\PageAssets\checksession.html" />
     <EmbeddedResource Include="Services\DefaultViewService\HttpAssets\app\FormPostResponse.js" />
@@ -583,18 +616,7 @@
     <Content Include="Services\DefaultViewService\HttpAssets\libs\encoder\encoder.min.js" />
     <Content Include="Services\DefaultViewService\HttpAssets\libs\jquery\jquery-1.11.0.js" />
     <Content Include="Services\DefaultViewService\HttpAssets\libs\jquery\jquery-1.11.0.min.js" />
-    <EmbeddedResource Include="Services\DefaultViewService\HttpAssets\scripts.2.0.0.js">
-      <DependentUpon>scripts.2.0.0.js.bundle</DependentUpon>
-    </EmbeddedResource>
-    <Content Include="Services\DefaultViewService\HttpAssets\scripts.2.0.0.min.js">
-      <DependentUpon>scripts.2.0.0.js</DependentUpon>
-    </Content>
-    <Content Include="Services\DefaultViewService\HttpAssets\styles.css">
-      <DependentUpon>styles.css.bundle</DependentUpon>
-    </Content>
-    <EmbeddedResource Include="Services\DefaultViewService\HttpAssets\styles.min.css">
-      <DependentUpon>styles.css</DependentUpon>
-    </EmbeddedResource>
+    <EmbeddedResource Include="Services\DefaultViewService\HttpAssets\scripts.2.5.0.js" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

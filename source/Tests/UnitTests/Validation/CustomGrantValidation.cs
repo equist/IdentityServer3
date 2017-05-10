@@ -18,6 +18,8 @@ using FluentAssertions;
 using IdentityServer3.Core.Extensions;
 using IdentityServer3.Core.Services;
 using IdentityServer3.Core.Validation;
+using Moq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -28,6 +30,27 @@ namespace IdentityServer3.Tests.Validation
     public class CustomGrantValidation
     {
         const string Category = "Validation - Custom Grant Validation";
+
+        [Fact]
+        [Trait("Category", Category)]
+        public async Task Valid_Custom_Grant_Validator_Throws_Exception()
+        {
+            var validatorThrowingException = new Mock<ICustomGrantValidator>();
+            validatorThrowingException.Setup(y => y.ValidateAsync(It.IsAny<ValidatedTokenRequest>())).Throws(new Exception("Random validation error"));
+            validatorThrowingException.Setup(y => y.GrantType).Returns("custom_grant");
+            var validator = new CustomGrantValidator(new[] { validatorThrowingException.Object});
+            var request = new ValidatedTokenRequest
+            {
+                GrantType = validator.GetAvailableGrantTypes().Single()
+            };
+
+            var result = await validator.ValidateAsync(request);
+
+            result.IsError.Should().BeTrue();
+            result.Error.Should().Be("Grant validation error");
+            result.Principal.Should().BeNull();
+            
+        }
 
         [Fact]
         [Trait("Category", Category)]

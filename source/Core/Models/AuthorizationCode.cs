@@ -92,6 +92,30 @@ namespace IdentityServer3.Core.Models
         public bool WasConsentShown { get; set; }
 
         /// <summary>
+        /// Gets or sets the session identifier.
+        /// </summary>
+        /// <value>
+        /// The session identifier.
+        /// </value>
+        public string SessionId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the code challenge.
+        /// </summary>
+        /// <value>
+        /// The code challenge.
+        /// </value>
+        public string CodeChallenge { get; set; }
+
+        /// <summary>
+        /// Gets or sets the code challenge method.
+        /// </summary>
+        /// <value>
+        /// The code challenge method
+        /// </value>
+        public string CodeChallengeMethod { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="AuthorizationCode"/> class.
         /// </summary>
         public AuthorizationCode()

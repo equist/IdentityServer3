@@ -169,12 +169,20 @@ namespace IdentityServer3.Core.Validation
         public string LoginHint { get; set; }
 
         /// <summary>
-        /// Gets or sets the session identifier.
+        /// Gets or sets the code challenge
         /// </summary>
         /// <value>
-        /// The session identifier.
+        /// The code challenge
         /// </value>
-        public string SessionId { get; set; }
+        public string CodeChallenge { get; set; }
+
+        /// <summary>
+        /// Gets or sets the code challenge method
+        /// </summary>
+        /// <value>
+        /// The code challenge method
+        /// </value>
+        public string CodeChallengeMethod { get; set; }
 
         /// <summary>
         /// Gets a value indicating whether an access token was requested.

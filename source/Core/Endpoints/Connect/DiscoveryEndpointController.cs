@@ -20,10 +20,14 @@ using IdentityServer3.Core.Extensions;
 using IdentityServer3.Core.Logging;
 using IdentityServer3.Core.Models;
 using IdentityServer3.Core.Services;
+using IdentityServer3.Core.Validation;
+using Microsoft.Owin;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Web.Http;
@@ -38,16 +42,22 @@ namespace IdentityServer3.Core.Endpoints
         private readonly static ILog Logger = LogProvider.GetCurrentClassLogger();
         private readonly IdentityServerOptions _options;
         private readonly IScopeStore _scopes;
+        private readonly CustomGrantValidator _customGrants;
+        private readonly IOwinContext _context;
+        private readonly ISigningKeyService _keyService;
 
-        static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
+        static readonly JsonSerializer Serializer = new JsonSerializer
         {
             NullValueHandling = NullValueHandling.Ignore
         };
 
-        public DiscoveryEndpointController(IdentityServerOptions options, IScopeStore scopes)
+        public DiscoveryEndpointController(IdentityServerOptions options, IScopeStore scopes, IOwinContext context, ISigningKeyService keyService, CustomGrantValidator customGrants)
         {
             _options = options;
             _scopes = scopes;
+            _context = context;
+            _keyService = keyService;
+            _customGrants = customGrants;
         }
 
         /// <summary>
@@ -60,71 +70,154 @@ namespace IdentityServer3.Core.Endpoints
             Logger.Info("Start discovery request");
 
             var baseUrl = Request.GetIdentityServerBaseUrl();
-            var scopes = await _scopes.GetScopesAsync(publicOnly: true);
-
-            var claims = new List<string>();
-            foreach (var s in scopes)
-            {
-                claims.AddRange(from c in s.Claims 
-                                where s.Type == ScopeType.Identity 
-                                select c.Name);
-            }
-
-            var supportedGrantTypes = Constants.SupportedGrantTypes.AsEnumerable();
-            if (this._options.AuthenticationOptions.EnableLocalLogin == false)
-            {
-                supportedGrantTypes = supportedGrantTypes.Where(type => type != Constants.GrantTypes.Password);
-            }
+            var allScopes = await _scopes.GetScopesAsync(publicOnly: true);
+            var showScopes = new List<Scope>();
 
             var dto = new DiscoveryDto
             {
-                issuer = _options.IssuerUri,
-                scopes_supported = scopes.Where(s => s.ShowInDiscoveryDocument).Select(s => s.Name).ToArray(),
-                claims_supported = claims.Distinct().ToArray(),
-                response_types_supported = Constants.SupportedResponseTypes.ToArray(),
-                response_modes_supported = Constants.SupportedResponseModes.ToArray(),
-                grant_types_supported = supportedGrantTypes.ToArray(),
+                issuer = _context.GetIdentityServerIssuerUri(),
                 subject_types_supported = new[] { "public" },
                 id_token_signing_alg_values_supported = new[] { Constants.SigningAlgorithms.RSA_SHA_256 },
-                token_endpoint_auth_methods_supported = new[] { Constants.TokenEndpointAuthenticationMethods.PostBody, Constants.TokenEndpointAuthenticationMethods.BasicAuthentication }
+                code_challenge_methods_supported = new[] { Constants.CodeChallengeMethods.Plain, Constants.CodeChallengeMethods.SHA_256 }
             };
-
-            if (_options.Endpoints.EnableAuthorizeEndpoint)
+            
+            // scopes
+            if (_options.DiscoveryOptions.ShowIdentityScopes)
             {
-                dto.authorization_endpoint = baseUrl + Constants.RoutePaths.Oidc.Authorize;
+                showScopes.AddRange(allScopes.Where(s => s.Type == ScopeType.Identity));
+            }
+            if (_options.DiscoveryOptions.ShowResourceScopes)
+            {
+                showScopes.AddRange(allScopes.Where(s => s.Type == ScopeType.Resource));
             }
 
-            if (_options.Endpoints.EnableTokenEndpoint)
+            if (showScopes.Any())
             {
-                dto.token_endpoint = baseUrl + Constants.RoutePaths.Oidc.Token;
+                dto.scopes_supported = showScopes.Where(s => s.ShowInDiscoveryDocument).Select(s => s.Name).ToArray();
             }
 
-            if (_options.Endpoints.EnableUserInfoEndpoint)
+            // claims
+            if (_options.DiscoveryOptions.ShowClaims)
             {
-                dto.userinfo_endpoint = baseUrl + Constants.RoutePaths.Oidc.UserInfo;
+                var claims = new List<string>();
+                foreach (var s in allScopes)
+                {
+                    claims.AddRange(from c in s.Claims
+                                    where s.Type == ScopeType.Identity
+                                    select c.Name);
+                }
+
+                dto.claims_supported = claims.Distinct().ToArray();
             }
 
-            if (_options.Endpoints.EnableEndSessionEndpoint)
+            // grant types
+            if (_options.DiscoveryOptions.ShowGrantTypes)
             {
-                dto.end_session_endpoint = baseUrl + Constants.RoutePaths.Oidc.EndSession;
+                var standardGrantTypes = Constants.SupportedGrantTypes.AsEnumerable();
+                if (this._options.AuthenticationOptions.EnableLocalLogin == false)
+                {
+                    standardGrantTypes = standardGrantTypes.Where(type => type != Constants.GrantTypes.Password);
+                }
+
+                var showGrantTypes = new List<string>(standardGrantTypes);
+
+                if (_options.DiscoveryOptions.ShowCustomGrantTypes)
+                {
+                    showGrantTypes.AddRange(_customGrants.GetAvailableGrantTypes());
+                }
+
+                dto.grant_types_supported = showGrantTypes.ToArray();
             }
 
-            if (_options.Endpoints.EnableCheckSessionEndpoint)
+            // response types
+            if (_options.DiscoveryOptions.ShowResponseTypes)
             {
-                dto.check_session_iframe = baseUrl + Constants.RoutePaths.Oidc.CheckSession;
+                dto.response_types_supported = Constants.SupportedResponseTypes.ToArray();
             }
 
-            if (_options.Endpoints.EnableTokenRevocationEndpoint)
+            // response modes
+            if (_options.DiscoveryOptions.ShowResponseModes)
             {
-                dto.revocation_endpoint = baseUrl + Constants.RoutePaths.Oidc.Revocation;
+                dto.response_modes_supported = Constants.SupportedResponseModes.ToArray();
             }
 
-            if (_options.SigningCertificate != null)
+            // token endpoint authentication methods
+            if (_options.DiscoveryOptions.ShowTokenEndpointAuthenticationMethods)
             {
-                dto.jwks_uri = baseUrl + Constants.RoutePaths.Oidc.DiscoveryWebKeys;
+                dto.token_endpoint_auth_methods_supported = new[] { Constants.TokenEndpointAuthenticationMethods.PostBody, Constants.TokenEndpointAuthenticationMethods.BasicAuthentication };
             }
 
-            return Json(dto, Settings);
+            // endpoints
+            if (_options.DiscoveryOptions.ShowEndpoints)
+            {
+                if (_options.Endpoints.EnableEndSessionEndpoint)
+                {
+                    dto.frontchannel_logout_supported = true;
+                    dto.frontchannel_logout_session_supported = true;
+                }
+
+                if (_options.Endpoints.EnableAuthorizeEndpoint)
+                {
+                    dto.authorization_endpoint = baseUrl + Constants.RoutePaths.Oidc.Authorize;
+                }
+
+                if (_options.Endpoints.EnableTokenEndpoint)
+                {
+                    dto.token_endpoint = baseUrl + Constants.RoutePaths.Oidc.Token;
+                }
+
+                if (_options.Endpoints.EnableUserInfoEndpoint)
+                {
+                    dto.userinfo_endpoint = baseUrl + Constants.RoutePaths.Oidc.UserInfo;
+                }
+
+                if (_options.Endpoints.EnableEndSessionEndpoint)
+                {
+                    dto.end_session_endpoint = baseUrl + Constants.RoutePaths.Oidc.EndSession;
+                }
+
+                if (_options.Endpoints.EnableCheckSessionEndpoint)
+                {
+                    dto.check_session_iframe = baseUrl + Constants.RoutePaths.Oidc.CheckSession;
+                }
+
+                if (_options.Endpoints.EnableTokenRevocationEndpoint)
+                {
+                    dto.revocation_endpoint = baseUrl + Constants.RoutePaths.Oidc.Revocation;
+                }
+
+                if (_options.Endpoints.EnableIntrospectionEndpoint)
+                {
+                    dto.introspection_endpoint = baseUrl + Constants.RoutePaths.Oidc.Introspection;
+                }
+            }
+
+            if (_options.DiscoveryOptions.ShowKeySet)
+            {
+                if (_options.SigningCertificate != null)
+                {
+                    dto.jwks_uri = baseUrl + Constants.RoutePaths.Oidc.DiscoveryWebKeys;
+                }
+            }
+
+            var jobject = JObject.FromObject(dto, Serializer);
+
+            // custom entries
+            if (_options.DiscoveryOptions.CustomEntries != null && _options.DiscoveryOptions.CustomEntries.Any())
+            {
+                foreach (var item in _options.DiscoveryOptions.CustomEntries)
+                {
+                    JToken token;
+                    if (jobject.TryGetValue(item.Key, out token))
+                    {
+                        throw new Exception("Item does already exist - cannot add it via a custom entry: " + item.Key);
+                    }
+
+                    jobject.Add(new JProperty(item.Key, item.Value));
+                }
+            }
+
+            return Content(HttpStatusCode.OK, jobject);
         }
 
         /// <summary>
@@ -132,12 +225,18 @@ namespace IdentityServer3.Core.Endpoints
         /// </summary>
         /// <returns>JSON Web Key set</returns>
         [HttpGet]
-        public IHttpActionResult GetKeyData()
+        public async Task<IHttpActionResult> GetKeyData()
         {
             Logger.Info("Start key discovery request");
 
+            if (_options.DiscoveryOptions.ShowKeySet == false)
+            {
+                Logger.Info("Key discovery disabled. 404.");
+                return NotFound();
+            }
+
             var webKeys = new List<JsonWebKeyDto>();
-            foreach (var pubKey in _options.PublicKeysForMetadata)
+            foreach (var pubKey in await _keyService.GetPublicKeysAsync())
             {
                 if (pubKey != null)
                 {
@@ -152,7 +251,7 @@ namespace IdentityServer3.Core.Endpoints
                     {
                         kty = "RSA",
                         use = "sig",
-                        kid = thumbprint,
+                        kid = await _keyService.GetKidAsync(pubKey),
                         x5t = thumbprint,
                         e = exponent,
                         n = modulus,
@@ -176,6 +275,9 @@ namespace IdentityServer3.Core.Endpoints
             public string end_session_endpoint { get; set; }
             public string check_session_iframe { get; set; }
             public string revocation_endpoint { get; set; }
+            public string introspection_endpoint { get; set; }
+            public bool? frontchannel_logout_supported { get; set; }
+            public bool? frontchannel_logout_session_supported { get; set; }
             public string[] scopes_supported { get; set; }
             public string[] claims_supported { get; set; }
             public string[] response_types_supported { get; set; }
@@ -183,6 +285,7 @@ namespace IdentityServer3.Core.Endpoints
             public string[] grant_types_supported { get; set; }
             public string[] subject_types_supported { get; set; }
             public string[] id_token_signing_alg_values_supported { get; set; }
+            public string[] code_challenge_methods_supported { get; set; }
             public string[] token_endpoint_auth_methods_supported { get; set; }
         };
 

@@ -54,6 +54,7 @@ namespace IdentityServer3.Core.Endpoints
         private readonly ILocalizationService _localizationService;
         private readonly IEventService _events;
         private readonly AntiForgeryToken _antiForgeryToken;
+        private readonly ClientListCookie _clientListCookie;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AuthorizeEndpointController" /> class.
@@ -66,6 +67,7 @@ namespace IdentityServer3.Core.Endpoints
         /// <param name="localizationService">The localization service.</param>
         /// <param name="events">The event service.</param>
         /// <param name="antiForgeryToken">The anti forgery token.</param>
+        /// <param name="clientListCookie">The client list cookie.</param>
         public AuthorizeEndpointController(
             IViewService viewService,
             AuthorizeRequestValidator validator,
@@ -74,7 +76,8 @@ namespace IdentityServer3.Core.Endpoints
             IdentityServerOptions options,
             ILocalizationService localizationService,
             IEventService events,
-            AntiForgeryToken antiForgeryToken)
+            AntiForgeryToken antiForgeryToken,
+            ClientListCookie clientListCookie)
         {
             _viewService = viewService;
             _options = options;
@@ -85,6 +88,7 @@ namespace IdentityServer3.Core.Endpoints
             _localizationService = localizationService;
             _events = events;
             _antiForgeryToken = antiForgeryToken;
+            _clientListCookie = clientListCookie;
         }
 
         /// <summary>
@@ -113,6 +117,7 @@ namespace IdentityServer3.Core.Endpoints
                 return await this.AuthorizeErrorAsync(
                     result.ErrorType,
                     result.Error,
+                    result.ErrorDescription,
                     result.ValidatedRequest);
             }
 
@@ -124,6 +129,7 @@ namespace IdentityServer3.Core.Endpoints
                 return await this.AuthorizeErrorAsync(
                     loginInteraction.Error.ErrorType,
                     loginInteraction.Error.Error,
+                    null,
                     request);
             }
             if (loginInteraction.IsLogin)
@@ -153,6 +159,7 @@ namespace IdentityServer3.Core.Endpoints
                 return await this.AuthorizeErrorAsync(
                     consentInteraction.Error.ErrorType,
                     consentInteraction.Error.Error,
+                    null,
                     request);
             }
 
@@ -188,12 +195,18 @@ namespace IdentityServer3.Core.Endpoints
             if (request.ResponseMode == Constants.ResponseModes.Query ||
                 request.ResponseMode == Constants.ResponseModes.Fragment)
             {
+                Logger.DebugFormat("Adding client {0} to client list cookie for subject {1}", request.ClientId, request.Subject.GetSubjectId());
+                _clientListCookie.AddClient(request.ClientId);
+
                 await RaiseSuccessEventAsync();
                 return new AuthorizeRedirectResult(response, _options);
             }
 
             if (request.ResponseMode == Constants.ResponseModes.FormPost)
             {
+                Logger.DebugFormat("Adding client {0} to client list cookie for subject {1}", request.ClientId, request.Subject.GetSubjectId());
+                _clientListCookie.AddClient(request.ClientId);
+
                 await RaiseSuccessEventAsync();
                 return new AuthorizeFormPostResult(response, Request);
             }
@@ -251,7 +264,7 @@ namespace IdentityServer3.Core.Endpoints
             return new LoginResult(Request.GetOwinContext().Environment, message);
         }
 
-        async Task<IHttpActionResult> AuthorizeErrorAsync(ErrorTypes errorType, string error, ValidatedAuthorizeRequest request)
+        async Task<IHttpActionResult> AuthorizeErrorAsync(ErrorTypes errorType, string error, string errorDescription, ValidatedAuthorizeRequest request)
         {
             await RaiseFailureEventAsync(error);
 
@@ -280,6 +293,7 @@ namespace IdentityServer3.Core.Endpoints
 
                 IsError = true,
                 Error = error,
+                ErrorDescription = errorDescription,
                 State = request.State,
                 RedirectUri = request.RedirectUri
             };

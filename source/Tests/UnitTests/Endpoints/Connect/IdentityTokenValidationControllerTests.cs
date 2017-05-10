@@ -19,6 +19,7 @@ using IdentityServer3.Core;
 using IdentityServer3.Core.Configuration;
 using IdentityServer3.Core.Extensions;
 using IdentityServer3.Core.Services;
+using IdentityServer3.Core.Services.Default;
 using IdentityServer3.Core.Validation;
 using IdentityServer3.Tests.Endpoints;
 using System;
@@ -217,8 +218,8 @@ namespace IdentityServer3.Tests.Connect.Endpoints
 
         private class AlwaysValidIdentityTokenValidator : TokenValidator
         {
-            public AlwaysValidIdentityTokenValidator(IdentityServerOptions options, IClientStore clients, ITokenHandleStore tokenHandles, ICustomTokenValidator customValidator)
-                : base(options, clients, tokenHandles, customValidator)
+            public AlwaysValidIdentityTokenValidator(IdentityServerOptions options, IClientStore clients, ITokenHandleStore tokenHandles, ICustomTokenValidator customValidator, OwinEnvironmentService context)
+                : base(options, clients, tokenHandles, customValidator, context, new DefaultSigningKeyService(options))
             {
             }
 
@@ -240,8 +241,8 @@ namespace IdentityServer3.Tests.Connect.Endpoints
 
         private class AlwaysInvalidIdentityTokenValidator : TokenValidator
         {
-            public AlwaysInvalidIdentityTokenValidator(IdentityServerOptions options, IClientStore clients, ITokenHandleStore tokenHandles, ICustomTokenValidator customValidator)
-                : base(options, clients, tokenHandles, customValidator)
+            public AlwaysInvalidIdentityTokenValidator(IdentityServerOptions options, IClientStore clients, ITokenHandleStore tokenHandles, ICustomTokenValidator customValidator, OwinEnvironmentService context)
+                : base(options, clients, tokenHandles, customValidator, context, new DefaultSigningKeyService(options))
             {
             }
 

@@ -46,7 +46,9 @@ namespace IdentityServer3.Core.Configuration.Hosting
 
             // see if the Origin is different than this server's origin. if so
             // that indicates a proper CORS request
-            var thisOrigin = request.Uri.Scheme + "://" + request.Uri.Authority;
+            var ctx = new OwinContext(request.Environment);
+            // using GetIdentityServerHost takes into account a configured PublicOrigin
+            var thisOrigin = ctx.GetIdentityServerHost();
             if (origin != null && origin != thisOrigin)
             {
                 if (IsPathAllowed(request))
@@ -65,7 +67,7 @@ namespace IdentityServer3.Core.Configuration.Hosting
                 }
                 else
                 {
-                    Logger.WarnFormat("CORS request made for path: {0} from origin: {1} but rejected because invalid CORS path", path, origin);
+                    Logger.InfoFormat("CORS request made for path: {0} from origin: {1} but rejected because invalid CORS path", path, origin);
                 }
             }
 

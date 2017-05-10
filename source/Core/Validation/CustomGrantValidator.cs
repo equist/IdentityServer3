@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+using IdentityServer3.Core.Logging;
 using IdentityServer3.Core.Services;
 using System;
 using System.Collections.Generic;
@@ -25,12 +26,18 @@ namespace IdentityServer3.Core.Validation
     internal class CustomGrantValidator
     {
         private readonly IEnumerable<ICustomGrantValidator> _validators;
-        
+        private readonly static ILog Logger = LogProvider.GetCurrentClassLogger();
+
         public CustomGrantValidator(IEnumerable<ICustomGrantValidator> validators)
         {
-            if (validators == null) throw new ArgumentNullException("validators");
-
-            _validators = validators;
+            if (validators == null)
+            {
+                _validators = Enumerable.Empty<ICustomGrantValidator>();
+            }
+            else
+            {
+                _validators = validators;
+            }
         }
 
         public IEnumerable<string> GetAvailableGrantTypes()
@@ -42,16 +49,26 @@ namespace IdentityServer3.Core.Validation
         {
             var validator = _validators.FirstOrDefault(v => v.GrantType.Equals(request.GrantType, StringComparison.Ordinal));
 
-            if (validator != null)
+            if (validator == null)
+            {
+                return new CustomGrantValidationResult
+                {
+                    IsError = true,
+                    Error = "No validator found for grant type"
+                };
+            }
+
+            try
             {
                 return await validator.ValidateAsync(request);
             }
-            else
+            catch (Exception e)
             {
-                return new CustomGrantValidationResult 
-                { 
-                    IsError = true, 
-                    ErrorDescription = "No validator found for grant type" 
+                Logger.Error("Grant validation error:" + e.Message);
+                return new CustomGrantValidationResult
+                {
+                    IsError = true,
+                    Error = "Grant validation error",
                 };
             }
         }
